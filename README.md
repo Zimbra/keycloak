@@ -20,96 +20,61 @@ This article assumes you already installed Ubuntu and have a working DNS name po
 Download Keycloak and install it using the following commands as root:
 
 ```
-apt-get update && apt upgrade -y
-reboot
-apt-get install default-jdk -y
+apt install -y postgresql postgresql-contrib default-jdk
 cd /opt
-wget https://github.com/keycloak/keycloak/releases/download/15.0.1/keycloak-15.0.1.tar.gz
-tar -xvzf keycloak-15.0.1.tar.gz 
-mv keycloak-15.0.1 /opt/keycloak
-groupadd keycloak
-useradd -r -g keycloak -d /opt/keycloak -s /sbin/nologin keycloak
-chown -R keycloak: keycloak
-chmod o+x /opt/keycloak/bin/
+wget https://github.com/keycloak/keycloak/releases/download/18.0.0/keycloak-18.0.0.tar.gz
+tar -xvzf keycloak-18.0.0.tar.gz
+mv keycloak-18.0.0 keycloak
+cd /opt/keycloak
+
+/opt/keycloak/bin/kc.sh build --db postgres
 ```
 
-Next set-up Keycloak in SystemD using the commands:
+Configure Postgress using the following commands as root, set a custom password for `setApasswordHere`:
 
 ```
-cd /etc/
-mkdir keycloak
-cp /opt/keycloak/docs/contrib/scripts/systemd/wildfly.conf /etc/keycloak/keycloak.conf
-cp /opt/keycloak/docs/contrib/scripts/systemd/launch.sh /opt/keycloak/bin/
-chown keycloak: /opt/keycloak/bin/launch.sh
+sudo -u postgres psql -c "ALTER USER postgres PASSWORD 'setApasswordHere'"
+sudo -u postgres createdb keycloak
 ```
-Open `launch.sh` using `nano` and update `WILDFLY_HOME`, the result should be:
 
+Create a launcher for Keycloak by creating a file `/usr/local/sbin/start-keycloak`. Update the password and the path to your TLS certificates. Example content:
 ```
-cat /opt/keycloak/bin/launch.sh
 #!/bin/bash
 
-if [ "x$WILDFLY_HOME" = "x" ]; then
-    WILDFLY_HOME="/opt/keycloak"
-fi
-
-if [[ "$1" == "domain" ]]; then
-    $WILDFLY_HOME/bin/domain.sh -c $2 -b $3
-else
-    $WILDFLY_HOME/bin/standalone.sh -c $2 -b $3
-fi
-```
-
-Creating a SystemD service file `/etc/systemd/system/keycloak.service` with the following content:
+/opt/keycloak/bin/kc.sh start --db-url-host localhost --db-username postgres --db-password setApasswordHere --hostname=keycloak.barrydegraaff.nl --https-port=443 --https-certificate-file=/etc/letsencrypt/live/barrydegraaff.nl/fullchain.pem --https-certificate-key-file=/etc/letsencrypt/live/barrydegraaff.nl/privkey.pem &> /var/log/keycloak.log
 
 ```
-[Unit]
-Description=The Keycloak Server
-After=syslog.target network.target
-Before=httpd.service
 
-[Service]
-Environment=LAUNCH_JBOSS_IN_BACKGROUND=1
-EnvironmentFile=/etc/keycloak/keycloak.conf
-User=keycloak
-Group=keycloak
-LimitNOFILE=102642
-PIDFile=/var/run/keycloak/keycloak.pid
-ExecStart=/opt/keycloak/bin/launch.sh $WILDFLY_MODE $WILDFLY_CONFIG $WILDFLY_BIND
-StandardOutput=null
-
-[Install]
-WantedBy=multi-user.target
-```
-
-Optionally, you can copy a template service file and change that to above using:
+Make the launcher executable:
 
 ```
-cp /opt/keycloak/docs/contrib/scripts/systemd/wildfly.service /etc/systemd/system/keycloak.service
+chmod +x  /usr/local/sbin/start-keycloak
 ```
-This is only useful if the service file get significant updates in the future and the copy paste from the above no longer works.
 
-Finally load the changes and start Keycloak:
+Configure log rotation by creating a file `/etc/logrotate.d/keycloak` with the following content:
+```
+/var/log/keycloak.log {
+        daily
+        missingok
+        rotate 400
+        compress
+        delaycompress
+        notifempty
+}
 
 ```
-systemctl daemon-reload
-systemctl enable keycloak
-systemctl start keycloak
-```
-You can debug using `tail -f /opt/keycloak/standalone/log/server.log` and `systemctl status keycloak`
 
 ### Adding your first admin user to Keycloak
 
 This can be done via the command line only as root as follows:
 
 ```
-/opt/keycloak/bin/add-user-keycloak.sh -r master -u YOURADMINUSERNAMEHERE -p ARANDOMPASSWORDHERE
-```
-Restart Keycloak for adding the initial user:
-```
-systemctl restart keycloak
+export KEYCLOAK_ADMIN=keycloakadm
+export KEYCLOAK_ADMIN_PASSWORD=put_a_PASSWORD-here
+/usr/local/sbin/start-keycloak &
 ```
 
-Go to your Keycloak server and log-in with the user you just created.
+You can debug using `tail -f /var/log/keycloak.log`. Go to your Keycloak server and log-in with the user you just created.
 
 ![First log-in](screenshots/01-login-admin.png)
 
@@ -133,107 +98,44 @@ To create an account on Zimbra via the command line, run as user `zimbra`:
 zmprov ca user@barrydegraaff.tk RANDOMPASSWORDHERE
 ```
 
-## Installing Nginx reverse proxy
+### Configuring Keycloak to start on boot
 
-To keep things simple we install an Nginx reverse proxy, this way you can add your own TLS certificates without having to change the Keycloak configuration. You can also use Apache instead of Nginx, see next section.
-
-```
-apt install nginx
-```
-
-Now replace `/etc/nginx/sites-enabled/default` with the following content:
+Since this version of Keycloak does not integrate very well with SystemD yet, one option is to start it via rc.local. To do so create a file `/etc/systemd/system/rc-local.service` with the following contents:
 
 ```
-# provided as an example, harden and configure as you see fit
-# Upstreams
-upstream backend {
-    server 127.0.0.1:8443;
-}
-
-# HTTPS Server
-server {
-    listen 443;
-    server_name keycloak.barrydegraaff.tk;
-
-    # You can increase the limit if your need to.
-    client_max_body_size 200M;
-
-    error_log /var/log/nginx/keycloak.access.log;
-
-    ssl on;
-    ssl_certificate /etc/letsencrypt/live/barrydegraaff.tk/cert.pem;
-    ssl_certificate_key /etc/letsencrypt/live/barrydegraaff.tk/privkey.pem;
-    ssl_protocols TLSv1 TLSv1.1 TLSv1.2; # don’t use SSLv3 ref: POODLE
-
-    location / {
-        proxy_pass https://backend/;
-        proxy_ssl_verify        off;
-        proxy_http_version 1.1;
-        proxy_hide_header 'X-Frame-Options';
-        proxy_hide_header 'Access-Control-Allow-Origin';
-
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection "upgrade";
-        proxy_set_header Host $http_host;
-
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forward-Proto http;
-        proxy_set_header X-Nginx-Proxy true;
-
-        proxy_redirect off;
-    }
-}
+[Unit]
+Description=/etc/rc.local Compatibility
+ConditionPathExists=/etc/rc.local
+[Service]
+Type=forking
+ExecStart=/etc/rc.local start
+TimeoutSec=0
+StandardOutput=tty
+RemainAfterExit=yes
+SysVStartPriority=99
+[Install]
+WantedBy=multi-user.target
 ```
 
-Update the paths to your TLS certificates in ssl_certificate and ssl_certificate_key and configure your server FQDN in server_name. Don't forget:
+And another file `/etc/rc.local` that will actually start Keycloak:
 
 ```
-systemctl restart nginx
+#!/bin/bash
+/usr/local/sbin/start-keycloak &
+exit 0
 ```
 
-## Installing Apache reverse proxy
-
-To keep things simple we install an Apache reverse proxy, this way you can add your own TLS certificates without having to change the Keycloak configuration. You can also use Nginx instead of Apache, see previous section.
+Enable Keycloak to start on boot:
 
 ```
-apt install apache2
-a2enmod proxy_http
-a2enmod proxy
-a2enmod ssl
-a2enmod rewrite
-a2enmod headers
+chmod +x /etc/rc.local
+systemctl daemon-reload
+systemctl enable rc-local
+sudo systemctl start rc-local.service
+sudo systemctl status rc-local.service
 ```
 
-Now put `/etc/apache2/sites-enabled/keycloak.conf` with the following content:
-
-```
-<VirtualHost *:443>
-    SSLEngine on
-
-    SSLCertificateFile /etc/letsencrypt/live/zimbra.tech/fullchain.pem
-    SSLCertificateKeyFile /etc/letsencrypt/live/zimbra.tech/privkey.pem
-
-    ServerName keycloak.zimbra.tech
-
-    SSLProxyEngine on
-    SSLProxyVerify none
-    SSLProxyCheckPeerCN off
-    SSLProxyCheckPeerName off
-    SSLProxyCheckPeerExpire off
-    ProxyPreserveHost On
-    RewriteEngine On
-    RewriteRule /(.*)           https://keycloak.zimbra.tech:8443/$1 [P,L]
-    ProxyPassReverse /          https://keycloak.zimbra.tech:8443/
-
-</VirtualHost>
-
-```
-Update the paths to your TLS certificates in ssl_certificate and ssl_certificate_key and configure your server FQDN in server_name. Don't forget:
-
-```
-systemctl restart apache2
-```
+Reboot your server to make sure Keycloak actually starts on system boot.
 
 ## Configuring Zimbra in Keycloak
 
@@ -442,7 +344,7 @@ tail -f /opt/zimbra/log/mailbox.log
 On Keycloak:
 
 ```
-tail -f /opt/keycloak/standalone/log/server.log
+tail -f /var/log/keycloak.log
 ```
 
 ## Adding more users
@@ -507,5 +409,8 @@ zmprov mcf zimbraWebClientLoginURL https://keycloak.barrydegraaff.tk/auth/realms
 
 ## References
 
-- https://medium.com/@hasnat.saeed/setup-keycloak-server-on-ubuntu-18-04-ed8c7c79a2d9
+- http://www.mastertheboss.com/keycloak/getting-started-with-keycloak-powered-by-quarkus/
+- https://www.keycloak.org/server/all-config
+- https://www.digitalocean.com/community/tutorials/how-to-install-postgresql-on-ubuntu-20-04-quickstart
 - https://www.samltool.com/format_x509cert.php
+- https://chrome.google.com/webstore/detail/saml-tracer/mpdajninpobndbfcldcmbpnnbhibjmch?hl=en
