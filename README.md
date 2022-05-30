@@ -20,6 +20,8 @@ This article assumes you already installed Ubuntu and have a working DNS name po
 Download Keycloak and install it using the following commands as root:
 
 ```
+apt-get update && apt upgrade -y
+reboot
 apt install -y postgresql postgresql-contrib default-jdk
 cd /opt
 wget https://github.com/keycloak/keycloak/releases/download/18.0.0/keycloak-18.0.0.tar.gz
