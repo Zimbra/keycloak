@@ -285,6 +285,8 @@ From the command line as user root copy the samlextn.jar and set up the IDP cert
     cat /tmp/idpcert.pem |xargs -0 zmprov md barrydegraaff.tk zimbraMyoneloginSamlSigningCert
     # zmprov mcf zimbraCsrfRefererCheckEnabled FALSE
     zmprov mcf zimbraCsrfAllowedRefererHosts keycloak.barrydegraaff.tk
+	# new since 9.0.0 patch 25 you are required to set zimbraVirtualHostName
+	zmprov md barrydegraaff.tk zimbraVirtualHostName zm-zimbra9.barrydegraaff.tk
     zmmailboxdctl restart
 
 ### Single logout
