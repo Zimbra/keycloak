@@ -279,15 +279,17 @@ saml_webclient_disabled_account_redirect_url
 
 From the command line as user root copy the samlextn.jar and set up the IDP certificate like this:
 
-    mkdir /opt/zimbra/lib/ext/saml
-    cp /opt/zimbra/extensions-network-extra/saml/samlextn.jar /opt/zimbra/lib/ext/saml/
-    su zimbra
-    cat /tmp/idpcert.pem |xargs -0 zmprov md barrydegraaff.tk zimbraMyoneloginSamlSigningCert
-    # zmprov mcf zimbraCsrfRefererCheckEnabled FALSE
-    zmprov mcf zimbraCsrfAllowedRefererHosts keycloak.barrydegraaff.tk
-	# new since 9.0.0 patch 25 you are required to set zimbraVirtualHostName
-	zmprov md barrydegraaff.tk zimbraVirtualHostName zm-zimbra9.barrydegraaff.tk
-    zmmailboxdctl restart
+```
+mkdir /opt/zimbra/lib/ext/saml
+cp /opt/zimbra/extensions-network-extra/saml/samlextn.jar /opt/zimbra/lib/ext/saml/
+su zimbra
+cat /tmp/idpcert.pem |xargs -0 zmprov md barrydegraaff.tk zimbraMyoneloginSamlSigningCert
+# zmprov mcf zimbraCsrfRefererCheckEnabled FALSE
+zmprov mcf zimbraCsrfAllowedRefererHosts keycloak.barrydegraaff.tk
+# new since 9.0.0 patch 25 you are required to set zimbraVirtualHostName:
+zmprov md barrydegraaff.tk zimbraVirtualHostName zm-zimbra9.barrydegraaff.tk
+zmmailboxdctl restart
+```
 
 ### Single logout
 
@@ -297,6 +299,8 @@ If you want the IDP to log-out all applications when the user clicks logout in Z
 zmprov md barrydegraaff.tk zimbraWebClientLogoutURL https://zm-zimbra9.barrydegraaff.tk/service/extension/samllogout
 #or globally
 zmprov mcf zimbraWebClientLogoutURL https://zm-zimbra9.barrydegraaff.tk/service/extension/samllogout
+# new since 9.0.0 patch 25 you are required to set it via a local config also:
+zmlocalconfig -e zimbra_web_client_logoff_urls=https://zm-zimbra9.barrydegraaff.tk/service/extension/samllogout
 ```
 
 ### Create users
