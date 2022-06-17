@@ -303,6 +303,12 @@ zmprov mcf zimbraWebClientLogoutURL https://zm-zimbra9.barrydegraaff.tk/service/
 zmlocalconfig -e zimbra_web_client_logoff_urls=https://zm-zimbra9.barrydegraaff.tk/service/extension/samllogout
 ```
 
+It is possible to use multiple URL's in `zimbra_web_client_logoff_urls` by using space as a delimiter:
+
+```
+zmlocalconfig -e zimbra_web_client_logoff_urls="https://zimbra.com https://synacor.com"
+```
+
 ### Create users
 
 Your user accounts must be manually created in Zimbra and be available in your IDP user database. It is important that the E-mail attribute in your IDP is set exactly the same as the Zimbra account name. Or the user will not be able to log-in. If it does not work run a `tail -f /opt/zimbra/log/*` while doing the authentication request and dig through to log to find out what the issue may be. Keywords to grep for: SAML, Audience and assertion.
