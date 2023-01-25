@@ -288,6 +288,7 @@ cat /tmp/idpcert.pem |xargs -0 zmprov md barrydegraaff.tk zimbraMyoneloginSamlSi
 zmprov mcf zimbraCsrfAllowedRefererHosts keycloak.barrydegraaff.tk
 # new since 9.0.0 patch 25 you are required to set zimbraVirtualHostName:
 zmprov md barrydegraaff.tk zimbraVirtualHostName zm-zimbra9.barrydegraaff.tk
+/opt/zimbra/bin/zmlocalconfig -e zimbra_same_site_cookie=""
 zmmailboxdctl restart
 ```
 
