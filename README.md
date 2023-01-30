@@ -242,6 +242,12 @@ cMOOFyX2qr3UOhiv5e/e/ytGaKP+aiJXKMwAmgPkg8vd+mgXKIh536vYRAd3OMyH
 -----END CERTIFICATE-----
 ```
 
+From the command line create the saml folders by running as root:
+
+```
+mkdir /opt/zimbra/lib/ext/saml
+mkdir /opt/zimbra/conf/saml/
+```
 Add the file `/opt/zimbra/conf/saml/saml-config.properties` to configure SAML in Zimbra add the contents:
 
 ```
@@ -280,7 +286,6 @@ saml_webclient_disabled_account_redirect_url
 From the command line as user root copy the samlextn.jar and set up the IDP certificate like this:
 
 ```
-mkdir /opt/zimbra/lib/ext/saml
 cp /opt/zimbra/extensions-network-extra/saml/samlextn.jar /opt/zimbra/lib/ext/saml/
 su zimbra
 cat /tmp/idpcert.pem |xargs -0 zmprov md barrydegraaff.tk zimbraMyoneloginSamlSigningCert
@@ -288,6 +293,22 @@ cat /tmp/idpcert.pem |xargs -0 zmprov md barrydegraaff.tk zimbraMyoneloginSamlSi
 zmprov mcf zimbraCsrfAllowedRefererHosts keycloak.barrydegraaff.tk
 # new since 9.0.0 patch 25 you are required to set zimbraVirtualHostName:
 zmprov md barrydegraaff.tk zimbraVirtualHostName zm-zimbra9.barrydegraaff.tk
+/opt/zimbra/bin/zmlocalconfig -e zimbra_same_site_cookie=""  #read below section!
+zmmailboxdctl restart
+```
+
+### SameSite Cookie restriction and SAML
+
+If your IDP and Zimbra are on the same domain in an on-premise deployment. For example zimbra.example.com and saml-idp.example.com you can use SameSite cookie setting Strict:
+
+```
+/opt/zimbra/bin/zmlocalconfig -e zimbra_same_site_cookie="Strict"
+zmmailboxdctl restart
+```
+
+If your IDP is under a different domain in a hosted SaaS IDP deployment. For example zimbra.example.com and saml.authprovider.org you probably have to disable the SameSite cookie setting as follows:
+
+```
 /opt/zimbra/bin/zmlocalconfig -e zimbra_same_site_cookie=""
 zmmailboxdctl restart
 ```
