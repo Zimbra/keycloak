@@ -220,6 +220,15 @@ Convert the X509Certificate using  https://www.samltool.com/format_x509cert.php
 ![Convert IDP Certificate](screenshots/13-convert-cert.png)
 *Convert IDP Certificate.*
 
+The process of downloading the IdP certificate can be mostly automated using a one-liner such as this:
+
+```bash
+curl -s https://keycloak.barrydegraaff.tk/auth/realms/master/protocol/saml/descriptor | \
+    xmllint --xpath "//*[name()='ds:X509Certificate']/text()" - | \
+    base64 -d | \
+    openssl x509 -inform DER -outform PEM
+```
+
 Store the result on your Zimbra server in `/tmp/idpcert.pem` the contents should look like:
 
 ```
